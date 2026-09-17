@@ -1,6 +1,6 @@
 # Robo 
 
-RESTful backend service built with NestJS, TypeORM, and PostgreSQL for the PNB Intern Onboarding program.
+RESTful backend service built with NestJS, TypeORM, and PostgreSQL 
 
 ---
 
