@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy'; // 1. Import JwtStrategy
 import { User } from '../users/entities/user.entity';
+import { RiskProfile } from '../risk-profile/entities/risk-profile.entity';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { User } from '../users/entities/user.entity';
       secret: 'NomNom@67',
       signOptions: { expiresIn: '1d' },
     }),
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, RiskProfile]),
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

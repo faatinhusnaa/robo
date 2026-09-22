@@ -1,83 +1,171 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+// src/users/users.service.ts
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { User } from './entities/user.entity';
+
+import { User, UserRole } from './entities/user.entity';
+import { RiskProfile, RiskTier } from '../risk-profile/entities/risk-profile.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { QUIZ_SCORE_MAP } from '../auth/constants/risk-quiz.constant';
+import { UserAnswersDto } from '../auth/dto/register.dto';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(RiskProfile)
+    private readonly riskProfileRepository: Repository<RiskProfile>,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(createUserDto.password, salt);
-
+  async create(createUserDto: CreateUserDto) {
+    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
     const user = this.userRepository.create({
       ...createUserDto,
       password: hashedPassword,
+      role: UserRole.USER,
     });
-
     return await this.userRepository.save(user);
   }
 
-  async findAll(paginationQuery?: PaginationQueryDto) {
-    const page = paginationQuery?.page ?? 1;
-    const limit = paginationQuery?.limit ?? 10;
-    const skip = (page - 1) * limit;
+  async findAll(paginationQuery?: any) {
+    const limit = paginationQuery?.limit || 10;
+    const page = paginationQuery?.page || 1;
+    const skip = paginationQuery?.offset ?? (page - 1) * limit;
 
     const [items, total] = await this.userRepository.findAndCount({
-      skip,
+      relations: { riskProfile: true },
       take: limit,
-      order: { id: 'ASC' },
+      skip: skip,
     });
 
-    return {
-      items,
-      meta: {
-        totalItems: total,
-        itemCount: items.length,
-        itemsPerPage: limit,
-        totalPages: Math.ceil(total / limit),
-        currentPage: page,
-      },
-    };
+    return { items, total, limit, page };
   }
 
-  async findOne(id: number): Promise<User> {
-    const user = await this.userRepository.findOneBy({ id });
+  async getProfile(id: number) {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      relations: { riskProfile: true },
+    });
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
     return user;
   }
 
-// src/users/users.service.ts
+  async updateProfile(
+    targetUserId: number,
+    currentUser: { id: number; role: any },
+    dto: UpdateUserDto,
+  ) {
+    if (
+      currentUser.role !== 'admin' &&
+      currentUser.role !== UserRole.ADMIN &&
+      currentUser.id !== targetUserId
+    ) {
+      throw new ForbiddenException('You can only update your own profile');
+    }
 
-async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
-  const user = await this.findOne(id);
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .leftJoinAndSelect('user.riskProfile', 'riskProfile')
+      .where('user.id = :id', { id: targetUserId })
+      .getOne();
 
-  // If a new password is being set, hash it first
-  if (updateUserDto.password) {
-    const salt = await bcrypt.genSalt(10);
-    updateUserDto.password = await bcrypt.hash(updateUserDto.password, salt);
+    if (!user) {
+      throw new NotFoundException(`User with ID ${targetUserId} not found`);
+    }
+
+    if (dto.name) {
+      user.name = dto.name;
+    }
+
+    if (dto.password) {
+      const isSelf = currentUser.id === targetUserId;
+      if (isSelf) {
+        if (!dto.currentPassword) {
+          throw new BadRequestException(
+            'Current password is required to set a new password',
+          );
+        }
+        const isMatch = await bcrypt.compare(dto.currentPassword, user.password);
+        if (!isMatch) {
+          throw new UnauthorizedException('Current password is incorrect');
+        }
+      }
+      user.password = await bcrypt.hash(dto.password, 10);
+    }
+
+    if (dto.role) {
+      if (
+        currentUser.role !== 'admin' &&
+        currentUser.role !== UserRole.ADMIN
+      ) {
+        throw new ForbiddenException('Only administrators can change roles');
+      }
+      user.role = dto.role;
+    }
+
+    const savedUser = await this.userRepository.save(user);
+
+    if (dto.quiz) {
+      const { score, tier } = this.calculateRisk(dto.quiz);
+      let profile = user.riskProfile;
+
+      if (profile) {
+        profile.score = score;
+        profile.tier = tier;
+        profile.answers = dto.quiz;
+      } else {
+        profile = this.riskProfileRepository.create({
+          score,
+          tier,
+          answers: dto.quiz,
+          user: savedUser,
+        });
+      }
+      await this.riskProfileRepository.save(profile);
+    }
+
+    return this.getProfile(savedUser.id);
   }
 
-  this.userRepository.merge(user, updateUserDto);
-  return await this.userRepository.save(user);
-}
-
-  async remove(id: number): Promise<void> {
-    const user = await this.findOne(id);
+  async remove(id: number) {
+    const user = await this.getProfile(id);
     await this.userRepository.remove(user);
   }
+
+  private calculateRisk(answers: UserAnswersDto): { score: number; tier: RiskTier } {
+    const horizonScore = QUIZ_SCORE_MAP.time_horizon[answers.time_horizon] ?? 0;
+    const volatilityScore = QUIZ_SCORE_MAP.volatility_reaction[answers.volatility_reaction] ?? 0;
+    const goalScore = QUIZ_SCORE_MAP.goal[answers.goal] ?? 0;
+    const expScore = QUIZ_SCORE_MAP.experience[answers.experience] ?? 5;
+
+    const total = horizonScore + volatilityScore + goalScore + expScore;
+
+    let tier = RiskTier.CONSERVATIVE;
+    if (total > 80) tier = RiskTier.AGGRESSIVE;
+    else if (total > 65) tier = RiskTier.GROWTH;
+    else if (total > 30) tier = RiskTier.MODERATE;
+
+    return { score: total, tier };
+  }
+
+  async updateAvatar(userId: number, avatarUrl: string) {
+    const user = await this.getProfile(userId);
+    user.avatar = avatarUrl;
+    await this.userRepository.save(user);
+    return user;
+  }
+
 }
 
-
-
-  

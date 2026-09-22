@@ -2,18 +2,22 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  OneToOne,
   CreateDateColumn,
-  OneToMany,
 } from 'typeorm';
-import { Role } from '../../auth/enum/role.enum';
-import { Post } from '../../posts/entities/post.entity';
+import type { RiskProfile } from '../../risk-profile/entities/risk-profile.entity';
+
+export enum UserRole {
+  USER = 'user',
+  ADMIN = 'admin',
+}
 
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ nullable: true })
   name: string;
 
   @Column({ unique: true })
@@ -22,19 +26,19 @@ export class User {
   @Column({ select: false, nullable: true })
   password: string;
 
+  @Column({ nullable: true })
+  avatar: string;
+
   @Column({
     type: 'enum',
-    enum: Role,
-    default: Role.USER,
+    enum: UserRole,
+    default: UserRole.USER,
   })
-  role: Role;
-
-  @Column({ type: 'text', nullable: true })
-  token: string | null;
-
-//@OneToMany(() => Post, (post) => post.user)
-  //posts: Post[];
+  role: UserRole;
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @OneToOne('RiskProfile', (riskProfile: RiskProfile) => riskProfile.user)
+  riskProfile: RiskProfile;
 }
