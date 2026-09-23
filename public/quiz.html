@@ -1462,44 +1462,51 @@
     }
 
     async function handleCreatePost(e) {
-      e.preventDefault();
-      const titleInput = document.getElementById('postTitleInput');
-      const contentInput = document.getElementById('postContentInput');
-      const submitBtn = document.getElementById('postSubmitBtn');
-      const statusMsg = document.getElementById('postStatusMsg');
+  e.preventDefault();
+  const token = localStorage.getItem('access_token'); // <--- GET TOKEN
+  if (!token) {
+    alert('Please sign in first to publish posts.');
+    return;
+  }
 
-      const title = titleInput.value.trim();
-      const content = contentInput.value.trim();
-      const userId = currentUserData?.id || 7;
+  const titleInput = document.getElementById('postTitleInput');
+  const contentInput = document.getElementById('postContentInput');
+  const submitBtn = document.getElementById('postSubmitBtn');
+  const statusMsg = document.getElementById('postStatusMsg');
 
-      if (!title || !content) return;
+  const title = titleInput.value.trim();
+  const content = contentInput.value.trim();
 
-      submitBtn.disabled = true;
-      statusMsg.innerText = 'Publishing...';
+  if (!title || !content) return;
 
-      try {
-        const res = await fetch('/posts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, content, userId }),
-        });
+  submitBtn.disabled = true;
+  statusMsg.innerText = 'Publishing...';
 
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Error publishing post');
-        }
+  try {
+    const res = await fetch('/posts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`, // <--- PASS JWT TOKEN HERE
+      },
+      body: JSON.stringify({ title, content }),
+    });
 
-        titleInput.value = '';
-        contentInput.value = '';
-        statusMsg.innerText = 'Published! ✨';
-        setTimeout(() => { statusMsg.innerText = ''; }, 2500);
-      } catch (err) {
-        statusMsg.innerText = err.message;
-      } finally {
-        submitBtn.disabled = false;
-      }
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Error publishing post');
     }
 
+    titleInput.value = '';
+    contentInput.value = '';
+    statusMsg.innerText = 'Published! ✨';
+    setTimeout(() => { statusMsg.innerText = ''; }, 2500);
+  } catch (err) {
+    statusMsg.innerText = err.message;
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
     // Profile & Avatar Actions
     async function openProfileModal() {
       const token = localStorage.getItem('access_token');

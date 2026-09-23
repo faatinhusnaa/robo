@@ -26,7 +26,7 @@ import { PortfolioModule } from './portfolio/portfolio.module';
     ]),
 
     // 3. Single Unified Database Connection
-   TypeOrmModule.forRootAsync({
+    TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
@@ -64,6 +64,7 @@ import { PortfolioModule } from './portfolio/portfolio.module';
     }),
 
     // 4. Feature Modules
+    PostsModule,
     UsersModule,
     AuthModule,
     PortfolioModule,
