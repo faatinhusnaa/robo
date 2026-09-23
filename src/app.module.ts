@@ -26,7 +26,7 @@ import { PortfolioModule } from './portfolio/portfolio.module';
     ]),
 
     // 3. Single Unified Database Connection
-    TypeOrmModule.forRootAsync({
+   TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
@@ -34,19 +34,22 @@ import { PortfolioModule } from './portfolio/portfolio.module';
           configService.get<string>('DATABASE_URL') ||
           process.env.DATABASE_URL;
 
+        console.log('--- DB CONNECTION CHECK ---');
+        console.log('DATABASE_URL detected:', dbUrl ? 'YES (URL found)' : 'NO (undefined)');
+
         if (dbUrl) {
           return {
             type: 'postgres',
             url: dbUrl,
             autoLoadEntities: true,
-            synchronize: true, // Auto-sync schema in Railway
+            synchronize: true,
             ssl: {
               rejectUnauthorized: false,
             },
           };
         }
 
-        // Local development fallback (localhost)
+        console.log('Falling back to local host: localhost');
         return {
           type: 'postgres',
           host: configService.get<string>('DB_HOST', 'localhost'),
