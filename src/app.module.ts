@@ -31,20 +31,34 @@ import { Post } from './posts/entities/post.entity';
 
     // 3. Single Unified Database Connection
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
+  imports: [ConfigModule],
+  inject: [ConfigService],
+  useFactory: (configService: ConfigService) => {
+    const dbUrl = configService.get<string>('DATABASE_URL');
+
+    if (dbUrl) {
+      return {
         type: 'postgres',
-        host: config.get<string>('DB_HOST', 'localhost'),
-        port: parseInt(config.get<string>('DB_PORT', '5432'), 10),
-        username: config.get<string>('DB_USERNAME', 'postgres'),
-        password: config.get<string>('DB_PASSWORD', 'postgres'),
-        database: config.get<string>('DB_NAME', 'first'),
-        entities: [User, RiskProfile, Post],
+        url: dbUrl,
         autoLoadEntities: true,
-        synchronize: true,
-      }),
-    }),
+        synchronize: true, // Set to false in high-security production if using migrations
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      };
+    }
+
+    // Fallback to local individual environment variables
+    return {
+      type: 'postgres',
+      host: configService.get<string>('DB_HOST', 'localhost'),
+      port: configService.get<number>('DB_PORT', 5432),
+      username: configService.get<string>('DB_USERNAME', 'postgres'),
+      password: configService.get<string>('DB_PASSWORD', 'postgres'),
+      database: configService.get<string>('DB_NAME', 'robo'),
+      autoLoadEntities: true,
+      synchronize: true,
+    };
+  },
+}),
 
     // 4. Feature Modules
     UsersModule,
