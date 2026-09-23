@@ -4,7 +4,6 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { join } from 'path';
-import { exec } from 'child_process';
 import { AppModule } from './app.module';
 import { PostgresExceptionFilter } from './common/filters/postgres-exception.filter';
 
@@ -19,15 +18,19 @@ async function bootstrap() {
     }),
   );
 
-  app.enableCors();
+  // 2. CORS configuration for WebSocket and REST
+  app.enableCors({
+    origin: '*',
+    credentials: true,
+  });
 
-  // 2. Serve Static Assets (public files and uploaded avatars)
+  // 3. Serve Static Assets (public files like quiz.html and uploads)
   app.useStaticAssets(join(__dirname, '..', 'public'));
   app.useStaticAssets(join(__dirname, '..', 'uploads'), {
     prefix: '/uploads/',
   });
 
-  // 3. Global Filters & Pipes
+  // 4. Global Filters & Validation Pipes
   app.useGlobalFilters(new PostgresExceptionFilter());
   app.useGlobalPipes(
     new ValidationPipe({
@@ -37,7 +40,7 @@ async function bootstrap() {
     }),
   );
 
-  // 4. Swagger Documentation Setup
+  // 5. Swagger Documentation Setup
   const config = new DocumentBuilder()
     .setTitle('Robo Advisor API')
     .setDescription('Robo Advisor Backend API Documentation')
@@ -48,21 +51,10 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
-  // 5. Start Server
+  // 6. Bind to dynamic Railway PORT or fallback to 8080
   const port = process.env.PORT || 8080;
-await app.listen(port, '0.0.0.0');
-console.log(`Application is running on: http://0.0.0.0:${port}`);
-
-  // 6. Trigger Database Seeding in Cloud Environment
-  //try {
-    //console.log('🔄 Triggering background database seed on Railway...');
-    //exec('npm run seed', (err, stdout, stderr) => {
-      //if (stdout) console.log(stdout);
-      //if (stderr) console.error(stderr);
-    //});
-  //} catch (e) {
-    //console.error('Seed trigger error:', e);
-  //}
+  await app.listen(port, '0.0.0.0');
+  console.log(`Application is running on: http://0.0.0.0:${port}`);
 }
 
 bootstrap();
