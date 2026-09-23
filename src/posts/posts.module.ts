@@ -4,9 +4,10 @@ import { PostsService } from './posts.service';
 import { PostsController } from './posts.controller';
 import { Post } from './entities/post.entity';
 import { User } from '../users/entities/user.entity';
+import { EventsModule } from '../events/events.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Post, User])],
+  imports: [TypeOrmModule.forFeature([Post, User]), EventsModule],
   controllers: [PostsController],
   providers: [PostsService],
 })

@@ -8,9 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <!-- Chart.js & html2pdf.js CDN -->
+  <!-- Chart.js, html2pdf.js & Socket.io CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
   <style>
     * {
@@ -92,6 +93,22 @@
 
     .btn-secondary:hover {
       background-color: #f3f4f6 !important;
+    }
+
+    .btn-feed-toggle {
+      background-color: #ffe4e6 !important;
+      color: #be123c !important;
+      border: 1px solid #fecdd3 !important;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-feed-toggle:hover {
+      background-color: #fecdd3 !important;
     }
 
     .btn-danger {
@@ -437,6 +454,7 @@
       width: 380px;
       box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
     }
+
     /* Ticker Styles */
     .market-ticker-wrap {
       width: 100%;
@@ -467,10 +485,26 @@
     .ticker-up { color: #4ade80; }
     .ticker-down { color: #f87171; }
 
+    /* Community Feed Section Styling */
+    .post-card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 18px;
+      border: 1px solid #fecdd3;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 12px rgba(225, 29, 72, 0.03);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .post-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(225, 29, 72, 0.08);
+    }
   </style>
 </head>
 <body>
-<!-- Live Market Ribbon -->
+
+  <!-- Live Market Ribbon -->
   <div class="market-ticker-wrap">
     <div class="market-ticker">
       <span class="ticker-item">S&P 500: <strong>5,720.40</strong> <span class="ticker-up">▲ +0.65%</span></span>
@@ -482,6 +516,7 @@
       <span class="ticker-item">BND: <strong>$74.20</strong> <span class="ticker-down">▼ -0.10%</span></span>
     </div>
   </div>
+
   <!-- Top Navbar -->
   <nav class="top-navbar">
     <a href="javascript:void(0)" onclick="goHome()" class="nav-brand">money laundering</a>
@@ -498,6 +533,10 @@
         <img id="navAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=robo" 
              alt="Avatar"
              style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid #fecdd3;" />
+        
+        <!-- Community Feed Single-Page Toggle -->
+        <button id="navFeedBtn" class="btn-feed-toggle" onclick="toggleFeedView()">💬 Community Feed</button>
+        
         <button id="adminTabBtn" class="btn-secondary" style="display: none;" onclick="toggleAdminPanel()">Admin Console</button>
         <button class="btn-pink" onclick="openProfileModal()">Edit Profile</button>
         <button class="btn-secondary" onclick="logout()">Logout</button>
@@ -607,7 +646,7 @@
 
         <!-- Section 1: Detailed Model ETF Breakdown -->
         <h3 style="font-size: 17px; font-weight: 800; color: #be123c; margin-bottom: 4px;">Recommended Model Portfolio</h3>
-        <p style="font-size: 13px; color: #eda8d7; margin-bottom: 14px;">Asset class diversification based on your risk evaluation:</p>
+        <p style="font-size: 13px; color: #6b7280; margin-bottom: 14px;">Asset class diversification based on your risk evaluation:</p>
 
         <div class="allocation-container">
           <div class="chart-box">
@@ -616,6 +655,41 @@
           <div id="holdingsWrapper" class="holdings-list">
             <!-- Dynamically populated -->
           </div>
+        </div>
+      </div>
+
+      <!-- Section 1.5: Integrated Community Live Stream (Single Page Feature) -->
+      <div id="communityFeedPanel" class="card" style="display: none; border: 2px solid #fecdd3;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <div>
+            <h3 style="font-size: 18px; font-weight: 800; color: #be123c; margin-bottom: 2px;">💬 Community Investor Feed</h3>
+            <p style="font-size: 13px; color: #6b7280;">Share strategies and follow real-time member posts</p>
+          </div>
+          <span id="feedLiveBadge" style="font-size: 11px; padding: 4px 10px; border-radius: 9999px; background: #ecfdf5; color: #059669; font-weight: 700; border: 1px solid #a7f3d0;">
+            ● Connecting...
+          </span>
+        </div>
+
+        <!-- Create Post Card Form -->
+        <form id="inlinePostForm" onsubmit="handleCreatePost(event)" style="background: #fff1f2; padding: 18px; border-radius: 16px; margin-bottom: 20px; border: 1px solid #fecdd3;">
+          <div class="input-group" style="margin-bottom: 10px;">
+            <input type="text" id="postTitleInput" class="text-input" placeholder="Post Title / Market Takeaway..." required />
+          </div>
+          <div class="input-group" style="margin-bottom: 12px;">
+            <textarea id="postContentInput" class="text-input" rows="2" placeholder="Write your thoughts or investment notes..." style="resize: none;" required></textarea>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span id="postStatusMsg" style="font-size: 12px; font-weight: 600; color: #be123c;"></span>
+            <button type="submit" id="postSubmitBtn" class="btn-pink" style="padding: 8px 18px; font-size: 13px;">
+              Publish to Feed
+            </button>
+          </div>
+        </form>
+
+        <!-- Live Feed Container -->
+        <h4 style="font-size: 14px; font-weight: 700; color: #4b5563; margin-bottom: 10px;">Latest Updates</h4>
+        <div id="postsListContainer">
+          <div style="text-align: center; color: #9ca3af; font-size: 13px; padding: 20px;">Loading posts...</div>
         </div>
       </div>
 
@@ -765,6 +839,7 @@
     let currentUserData = null;
     let allocationChartInstance = null;
     let growthChartInstance = null;
+    let socketInstance = null;
 
     // Model Portfolio Mappings per Tier
     const PORTFOLIO_MODELS = {
@@ -777,11 +852,7 @@
         ],
         chartData: [60, 30, 10],
         chartLabels: ['red (sanrio)', 'pink (quities)', 'purple (Bonds)'],
-        chartColors: [
-          '#ef4444',
-          '#f472b6',
-          '#a855f7'
-        ]
+        chartColors: ['#ef4444', '#f472b6', '#a855f7']
       },
       GROWTH: {
         returnRate: 0.08,
@@ -793,12 +864,7 @@
         ],
         chartData: [50, 25, 20, 5],
         chartLabels: ['red', 'pink', 'purple', 'purin'],
-        chartColors: [
-          '#ef4444',
-          '#f472b6',
-          '#a855f7',
-          '#facc15'
-        ]
+        chartColors: ['#ef4444', '#f472b6', '#a855f7', '#facc15']
       },
       MODERATE: {
         returnRate: 0.065,
@@ -810,12 +876,7 @@
         ],
         chartData: [35, 15, 40, 10],
         chartLabels: ['red', 'pink', 'purple', 'purin'],
-        chartColors: [
-          '#ef4444',
-          '#f472b6',
-          '#a855f7',
-          '#facc15'
-        ]
+        chartColors: ['#ef4444', '#f472b6', '#a855f7', '#facc15']
       },
       CONSERVATIVE: {
         returnRate: 0.045,
@@ -827,12 +888,7 @@
         ],
         chartData: [50, 30, 15, 5],
         chartLabels: ['purple', 'IEF Treasuries', 'red', 'purin'],
-        chartColors: [
-          '#ef4444',
-          '#f472b6',
-          '#a855f7',
-          '#facc15'
-        ]
+        chartColors: ['#ef4444', '#f472b6', '#a855f7', '#facc15']
       }
     };
 
@@ -1084,6 +1140,7 @@
 
         renderPortfolioBreakdown(tier);
         updateSimulation();
+        initSocketFeed();
 
         switchView('viewDashboard');
       } catch (err) {
@@ -1095,7 +1152,6 @@
     function renderPortfolioBreakdown(tier) {
       const model = PORTFOLIO_MODELS[tier] || PORTFOLIO_MODELS.MODERATE;
 
-      // Populate Holdings list
       const holdingsWrapper = document.getElementById('holdingsWrapper');
       holdingsWrapper.innerHTML = model.holdings.map((h, i) => `
         <div class="holding-item">
@@ -1110,7 +1166,6 @@
         </div>
       `).join('');
 
-      // Render Chart.js Donut
       const ctx = document.getElementById('allocationChart').getContext('2d');
       if (allocationChartInstance) allocationChartInstance.destroy();
 
@@ -1170,7 +1225,6 @@
       document.getElementById('projDeposited').innerText = `$${Math.round(totalDeposited).toLocaleString()}`;
       document.getElementById('projGains').innerText = `+$${Math.round(balance - totalDeposited).toLocaleString()}`;
 
-      // Render Projection Area Chart
       const ctx = document.getElementById('growthChart').getContext('2d');
       if (growthChartInstance) growthChartInstance.destroy();
 
@@ -1262,7 +1316,7 @@
       const token = localStorage.getItem('access_token');
       try {
         const res = await fetch(`/users/${userId}`, {
-          method: 'PUT', // <--- Change PATCH to PUT
+          method: 'PUT',
           headers: { 
             'Content-Type': 'application/json', 
             Authorization: `Bearer ${token}` 
@@ -1311,6 +1365,139 @@
         jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
       };
       html2pdf().set(opt).from(element).save();
+    }
+
+    // 5. Community Feed & Real-Time WebSockets
+    function toggleFeedView() {
+      const panel = document.getElementById('communityFeedPanel');
+      const btn = document.getElementById('navFeedBtn');
+      const isHidden = panel.style.display === 'none';
+
+      panel.style.display = isHidden ? 'block' : 'none';
+      btn.innerText = isHidden ? '📊 Hide Feed' : '💬 Community Feed';
+
+      if (isHidden) {
+        panel.scrollIntoView({ behavior: 'smooth' });
+        loadFeedPosts();
+      }
+    }
+
+    function initSocketFeed() {
+      if (socketInstance) return;
+
+      socketInstance = io(window.location.origin);
+      const badge = document.getElementById('feedLiveBadge');
+
+      socketInstance.on('connect', () => {
+        if (badge) {
+          badge.innerText = '● Live Connected';
+          badge.style.background = '#ecfdf5';
+          badge.style.color = '#059669';
+          badge.style.borderColor = '#a7f3d0';
+        }
+      });
+
+      socketInstance.on('disconnect', () => {
+        if (badge) {
+          badge.innerText = '○ Offline';
+          badge.style.background = '#fee2e2';
+          badge.style.color = '#dc2626';
+          badge.style.borderColor = '#fca5a5';
+        }
+      });
+
+      socketInstance.on('post:created', (newPost) => {
+        renderPost(newPost, true);
+      });
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function renderPost(post, prepend = false) {
+      const container = document.getElementById('postsListContainer');
+      const emptyNote = container.querySelector('.empty-feed-note');
+      if (emptyNote) emptyNote.remove();
+
+      const author = post.user?.name || `User #${post.user?.id || post.userId || '?'}`;
+      const card = document.createElement('div');
+      card.className = 'post-card';
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <h5 style="font-size: 15px; font-weight: 700; color: #111827;">${escapeHtml(post.title)}</h5>
+          <span style="font-size: 11px; font-weight: 700; color: #be123c; background: #ffe4e6; padding: 2px 8px; border-radius: 9999px;">
+            @${escapeHtml(author)}
+          </span>
+        </div>
+        <p style="font-size: 13px; color: #4b5563; line-height: 1.5;">${escapeHtml(post.content)}</p>
+      `;
+
+      if (prepend && container.firstChild) {
+        container.insertBefore(card, container.firstChild);
+      } else {
+        container.appendChild(card);
+      }
+    }
+
+    async function loadFeedPosts() {
+      const container = document.getElementById('postsListContainer');
+      try {
+        const res = await fetch('/posts');
+        const result = await res.json();
+        const posts = Array.isArray(result) ? result : (result.data || []);
+        
+        container.innerHTML = '';
+        if (posts.length === 0) {
+          container.innerHTML = '<div class="empty-feed-note" style="text-align: center; color: #9ca3af; font-size: 13px; padding: 20px;">No posts published yet. Be the first to share!</div>';
+          return;
+        }
+
+        // Render newest at top
+        posts.slice().reverse().forEach((p) => renderPost(p, false));
+      } catch (err) {
+        container.innerHTML = '<div style="text-align: center; color: #dc2626; font-size: 13px; padding: 20px;">Failed to load posts stream.</div>';
+      }
+    }
+
+    async function handleCreatePost(e) {
+      e.preventDefault();
+      const titleInput = document.getElementById('postTitleInput');
+      const contentInput = document.getElementById('postContentInput');
+      const submitBtn = document.getElementById('postSubmitBtn');
+      const statusMsg = document.getElementById('postStatusMsg');
+
+      const title = titleInput.value.trim();
+      const content = contentInput.value.trim();
+      const userId = currentUserData?.id || 7;
+
+      if (!title || !content) return;
+
+      submitBtn.disabled = true;
+      statusMsg.innerText = 'Publishing...';
+
+      try {
+        const res = await fetch('/posts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, content, userId }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Error publishing post');
+        }
+
+        titleInput.value = '';
+        contentInput.value = '';
+        statusMsg.innerText = 'Published! ✨';
+        setTimeout(() => { statusMsg.innerText = ''; }, 2500);
+      } catch (err) {
+        statusMsg.innerText = err.message;
+      } finally {
+        submitBtn.disabled = false;
+      }
     }
 
     // Profile & Avatar Actions

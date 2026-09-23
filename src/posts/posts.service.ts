@@ -6,6 +6,7 @@ import { User } from '../users/entities/user.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { EventsGateway } from '../events/events.gateway';
 
 @Injectable()
 export class PostsService {
@@ -14,21 +15,28 @@ export class PostsService {
     private readonly postRepository: Repository<Post>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly eventsGateway: EventsGateway,
   ) {}
 
   async create(createPostDto: CreatePostDto): Promise<Post> {
+    // 1. Verify author exists
     const user = await this.userRepository.findOneBy({ id: createPostDto.userId });
     if (!user) {
       throw new NotFoundException(`User with ID ${createPostDto.userId} not found`);
     }
 
+    // 2. Create and persist to PostgreSQL
     const post = this.postRepository.create({
       title: createPostDto.title,
       content: createPostDto.content,
       user,
     });
+    const savedPost = await this.postRepository.save(post);
 
-    return await this.postRepository.save(post);
+    // 3. Broadcast to all active WebSocket listeners
+    this.eventsGateway.broadcastNewPost(savedPost);
+
+    return savedPost;
   }
 
   async findAll(paginationQuery?: PaginationQueryDto) {

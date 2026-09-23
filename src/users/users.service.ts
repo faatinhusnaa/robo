@@ -73,6 +73,7 @@ export class UsersService {
     ) {
       throw new ForbiddenException('You can only update your own profile');
     }
+    
 
     const user = await this.userRepository
       .createQueryBuilder('user')
