@@ -1262,15 +1262,25 @@
       const token = localStorage.getItem('access_token');
       try {
         const res = await fetch(`/users/${userId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          method: 'PUT', // <--- Change PATCH to PUT
+          headers: { 
+            'Content-Type': 'application/json', 
+            Authorization: `Bearer ${token}` 
+          },
           body: JSON.stringify({ role: newRole })
         });
-        if (!res.ok) throw new Error('Role update failed');
-        alert(`User #${userId} role updated to ${newRole.toUpperCase()}`);
+
+        const data = await res.json();
+        if (!res.ok) {
+          const errMsg = Array.isArray(data.message) ? data.message.join(', ') : data.message;
+          throw new Error(errMsg || 'Role update failed');
+        }
+
+        alert(`User #${userId} role updated to ${newRole.toUpperCase()}!`);
         loadAdminUsers();
       } catch (e) {
-        alert(e.message);
+        alert('Update failed: ' + e.message);
+        loadAdminUsers();
       }
     }
 
