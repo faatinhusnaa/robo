@@ -4,6 +4,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { join } from 'path';
+import { exec } from 'child_process';
 import { AppModule } from './app.module';
 import { PostgresExceptionFilter } from './common/filters/postgres-exception.filter';
 
@@ -51,6 +52,17 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');
   console.log(`Application is running on: http://0.0.0.0:${port}`);
+
+  // 6. Trigger Database Seeding in Cloud Environment
+  try {
+    console.log('🔄 Triggering background database seed on Railway...');
+    exec('npm run seed', (err, stdout, stderr) => {
+      if (stdout) console.log(stdout);
+      if (stderr) console.error(stderr);
+    });
+  } catch (e) {
+    console.error('Seed trigger error:', e);
+  }
 }
 
 bootstrap();
