@@ -49,20 +49,20 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   // 5. Start Server
-  const port = process.env.PORT || 3000;
-  await app.listen(port, '0.0.0.0');
-  console.log(`Application is running on: http://0.0.0.0:${port}`);
+  const port = process.env.PORT || 8080;
+await app.listen(port, '0.0.0.0');
+console.log(`Application is running on: http://0.0.0.0:${port}`);
 
   // 6. Trigger Database Seeding in Cloud Environment
-  try {
-    console.log('🔄 Triggering background database seed on Railway...');
-    exec('npm run seed', (err, stdout, stderr) => {
-      if (stdout) console.log(stdout);
-      if (stderr) console.error(stderr);
-    });
-  } catch (e) {
-    console.error('Seed trigger error:', e);
-  }
+  //try {
+    //console.log('🔄 Triggering background database seed on Railway...');
+    //exec('npm run seed', (err, stdout, stderr) => {
+      //if (stdout) console.log(stdout);
+      //if (stderr) console.error(stderr);
+    //});
+  //} catch (e) {
+    //console.error('Seed trigger error:', e);
+  //}
 }
 
 bootstrap();
